@@ -1,20 +1,49 @@
+import { db } from '../db';
+import { disputesTable, usersTable } from '../db/schema';
 import { type ResolveDisputeInput, type Dispute } from '../schema';
+import { eq, and } from 'drizzle-orm';
 
 export async function resolveDispute(input: ResolveDisputeInput): Promise<Dispute> {
-    // This is a placeholder declaration! Real code should be implemented here.
-    // The goal of this handler is resolving a dispute by Admin Kelurahan users.
-    // Should validate that the dispute exists and the admin has permission to resolve it.
-    // Should update the dispute status, admin response, and resolved_by_admin_id fields.
-    return Promise.resolve({
-        id: input.id,
-        payment_id: 0, // Should be fetched from existing record
-        user_id: 0, // Should be fetched from existing record
-        dispute_reason: 'placeholder_reason', // Should be fetched from existing record
-        evidence_photo_url: null, // Should be fetched from existing record
+  try {
+    // First, verify the admin user exists and has admin role
+    const admin = await db.select()
+      .from(usersTable)
+      .where(eq(usersTable.id, input.resolved_by_admin_id))
+      .execute();
+
+    if (admin.length === 0) {
+      throw new Error('Admin user not found');
+    }
+
+    if (admin[0].role !== 'admin_kelurahan') {
+      throw new Error('User is not authorized to resolve disputes');
+    }
+
+    // Get the existing dispute to validate it exists
+    const existingDispute = await db.select()
+      .from(disputesTable)
+      .where(eq(disputesTable.id, input.id))
+      .execute();
+
+    if (existingDispute.length === 0) {
+      throw new Error('Dispute not found');
+    }
+
+    // Update the dispute with resolution information
+    const result = await db.update(disputesTable)
+      .set({
         status: input.status,
         admin_response: input.admin_response,
         resolved_by_admin_id: input.resolved_by_admin_id,
-        created_at: new Date(), // Should be fetched from existing record
         updated_at: new Date()
-    } as Dispute);
+      })
+      .where(eq(disputesTable.id, input.id))
+      .returning()
+      .execute();
+
+    return result[0];
+  } catch (error) {
+    console.error('Dispute resolution failed:', error);
+    throw error;
+  }
 }

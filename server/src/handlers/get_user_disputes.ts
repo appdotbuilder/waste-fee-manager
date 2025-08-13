@@ -1,9 +1,31 @@
+import { db } from '../db';
+import { disputesTable } from '../db/schema';
 import { type GetUserDisputesInput, type Dispute } from '../schema';
+import { eq, and, type SQL } from 'drizzle-orm';
 
 export async function getUserDisputes(input: GetUserDisputesInput): Promise<Dispute[]> {
-    // This is a placeholder declaration! Real code should be implemented here.
-    // The goal of this handler is fetching disputes for a specific user.
-    // Should filter by user_id and optionally by dispute status.
-    // Citizens should only see their own disputes, admins can see all disputes.
-    return Promise.resolve([]);
+  try {
+    // Build conditions array
+    const conditions: SQL<unknown>[] = [];
+    
+    // Always filter by user_id
+    conditions.push(eq(disputesTable.user_id, input.user_id));
+
+    // Add status filter if provided
+    if (input.status) {
+      conditions.push(eq(disputesTable.status, input.status));
+    }
+
+    // Build query with proper where clause
+    const results = await db.select()
+      .from(disputesTable)
+      .where(conditions.length === 1 ? conditions[0] : and(...conditions))
+      .execute();
+
+    // Return results with proper date conversion
+    return results;
+  } catch (error) {
+    console.error('Failed to get user disputes:', error);
+    throw error;
+  }
 }
